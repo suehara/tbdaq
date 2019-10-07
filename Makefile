@@ -4,7 +4,7 @@
 SUFFIX   = .cc
 SUFFIXH  = .h
 COMPILER = g++
-CFLAGS   = -Wall -O2
+CFLAGS   = -O2
 LFLAGS   = -lpthread -lstdc++ -L./lib -lftd2xx -llalusb20
 
 SRCDIR   = ./src
@@ -18,10 +18,12 @@ OBJECTS  = $(notdir $(SOURCES:$(SUFFIX)=.o))
 TARGETS  = $(notdir $(basename $(SOURCES)))
 
 define MAKEALL
+$(1): $(EXEDIR)/$(1)
+	
 $(EXEDIR)/$(1): $(OBJDIR)/$(1).o
-    $(COMPILER) $(LFLAGS) -o $(EXEDIR)/$(1) $(OBJDIR)/$(1).o
-$(OBJDIR)/$(1).o: $(SRCDIR)/$(1).cc $(INCLUDES)
-    $(COMPILER) -I$(INCLUDE) $(CFLAGS) -c $(SRCDIR)/$(1)$(SUFFIX)
+	$(COMPILER) $(LFLAGS) -o $(EXEDIR)/$(1) $(OBJDIR)/$(1).o
+$(OBJDIR)/$(1).o: $(SRCDIR)/$(1)$(SUFFIX) $(INCLUDES)
+	$(COMPILER) -I$(INCLUDE) $(CFLAGS) -o $(OBJDIR)/$(1).o -c $(SRCDIR)/$(1)$(SUFFIX)
 endef
 
 .PHONY: all
@@ -31,6 +33,6 @@ $(foreach VAR,$(TARGETS),$(eval $(call MAKEALL,$(VAR))))
 #make clean
 .PHONY: clean
 clean: 
-    $(RM) $(EXEDIR)/* 
-    $(RM) $(OBJDIR)/* 
+	$(RM) $(EXEDIR)/* 
+	$(RM) $(OBJDIR)/* 
 
