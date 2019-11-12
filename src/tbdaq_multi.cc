@@ -176,6 +176,25 @@ int main(int argc,char **argv)
           wr = rd | 0x80; // bit 2
           UsbWrt(id[i], 23, &wr, 1);
         }
+        else{
+          // auto -> manual
+          UsbRd(id[i], 2, &rd, 1); 
+          wr = rd & 0xef; // bit 4
+          UsbWrt(id[i], 2, &wr, 1);
+
+          // reset asic
+          UsbRd(id[i], 1, &rd, 1); 
+          wr = rd & 0xfb; // bit 2
+          UsbWrt(id[i], 1, &wr, 1);
+          wr = rd; // bit 2 release
+          UsbWrt(id[i], 1, &wr, 1);
+
+          // manual -> auto
+          UsbRd(id[i], 2, &rd, 1); 
+          wr = rd | 0x10; // bit 4
+          UsbWrt(id[i], 2, &wr, 1);
+        }
+
       }
       
 //      ::usleep(200000);
@@ -210,25 +229,8 @@ int main(int argc,char **argv)
           UsbRd(id[i], 23, &rd, 1); 
           wr = rd & 0x7f; // bit 2
           UsbWrt(id[i], 23, &wr, 1);
-        }else{
-          // auto -> manual
-          UsbRd(id[i], 2, &rd, 1); 
-          wr = rd & 0xef; // bit 4
-          UsbWrt(id[i], 2, &wr, 1);
-
-          // reset asic
-          UsbRd(id[i], 1, &rd, 1); 
-          wr = rd & 0xfb; // bit 2
-          UsbWrt(id[i], 1, &wr, 1);
-          wr = rd; // bit 2 release
-          UsbWrt(id[i], 1, &wr, 1);
-
-          // manual -> auto
-          UsbRd(id[i], 2, &rd, 1); 
-          wr = rd | 0x10; // bit 4
-          UsbWrt(id[i], 2, &wr, 1);
         }
-
+        
         // write DIF header
         // SPIL header
         int n = 0;
