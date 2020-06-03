@@ -1,6 +1,7 @@
 // tbdaq_multi.cc
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <fcntl.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
@@ -182,12 +183,16 @@ int main(int argc,char **argv)
           wr = rd & 0xef; // bit 4
           UsbWrt(id[i], 2, &wr, 1);
 
-          // reset asic
-          UsbRd(id[i], 1, &rd, 1); 
-          wr = rd & 0xfb; // bit 2
-          UsbWrt(id[i], 1, &wr, 1);
-          wr = rd; // bit 2 release
-          UsbWrt(id[i], 1, &wr, 1);
+	  // check readout flag
+          //UsbRd(id[i], 4, &rd, 1);
+	  //	  if(rd & 8 > 0){
+	    // reset asic
+	    UsbRd(id[i], 1, &rd, 1); 
+	    wr = rd & 0xfb; // bit 2
+	    UsbWrt(id[i], 1, &wr, 1);
+	    wr = rd; // bit 2 release
+	    UsbWrt(id[i], 1, &wr, 1);
+	    //}
 
           // manual -> auto
           UsbRd(id[i], 2, &rd, 1); 
@@ -200,11 +205,94 @@ int main(int argc,char **argv)
 //      ::usleep(200000);
       
       cout << "Waiting data to be ready..." << endl;
+      
+      // timeout val
+      int timeout_usec1 = 3000000; // 3 sec for recovery
+      int timeout_usec2 = 1700000; // 1.7 sec for throwing data away
+
+      struct timeval tv, tv2;
+      ::gettimeofday(&tv, 0);
+      bool timeout = false;
+
       for(int i=0;i<nboards;i++){
         do{
           UsbRd(id[i], 4, &rd, 1);
+	  ::gettimeofday(&tv2, 0);
+	  if((tv2.tv_sec - tv.tv_sec)*1000000 + (tv2.tv_usec - tv.tv_usec)> timeout_usec1){
+	    timeout = true;
+	    break;
+	  }    
         }while((rd & 8) == 0);
+	if(timeout){
+	  cout << "Timeout occurred: skip this readout." << endl;
+	  break;
+	}
         cout << "End_ReadOut1 for ID " << i << " detected at " << getTimeString() << endl;
+      }
+
+      bool timeout2 = ((tv2.tv_sec - tv.tv_sec)*1000000 + (tv2.tv_usec - tv.tv_usec) > timeout_usec2);
+
+      if(timeout == true){
+	cout << "Timeout detected. Trying recovery..." << endl;
+
+	for(int i=0;i<nboards;i++){
+	  if(!isAuto[i])continue;
+
+	  // auto -> manual
+	  UsbRd(id[i], 2, &rd, 1); 
+	  wr = rd & 0xef; // bit 4
+	  UsbWrt(id[i], 2, &wr, 1);
+
+	  // reset asic
+	  UsbRd(id[i], 1, &rd, 1); 
+	  wr = rd & 0xfb; // bit 2
+	  UsbWrt(id[i], 1, &wr, 1);
+	  wr = rd; // bit 2 release
+	  UsbWrt(id[i], 1, &wr, 1);
+
+	  // start acq
+	  UsbRd(id[i], 2, &rd, 1);
+	  wr = rd | 0x1; // bit 0
+	  UsbWrt(id[i], 2, &wr, 1);
+
+	  // wait 200 msec
+	  ::usleep(200000);
+	  
+	  // stop acq
+	  wr = rd; // bit 0 release
+	  UsbWrt(id[i], 2, &wr, 1);
+
+	  ::usleep(100000); // important to get correct bytes to read
+
+	  // start readout
+	  wr = rd | 0x4; // bit 2
+	  UsbWrt(id[i], 2, &wr, 1);
+	  wr = rd; // bit 2 release
+	  UsbWrt(id[i], 2, &wr, 1);
+
+	  cout << "Waiting readout..." << endl;
+	  do{
+	    UsbRd(id[i], 4, &rd, 1);
+	  }while((rd & 8) == 0);
+	  cout << "End_ReadOut1 detected at " << getTimeString() << endl;
+	  
+	  cout << "Readout board " << i << endl;
+      
+	  int nb1, nb2;
+	  UsbRd(id[i], 14, &nb1, 1); 
+	  UsbRd(id[i], 13, &nb2, 1); 
+      
+	  int nb = ((nb2 & 15) << 8) + (nb1 & 255);
+	  cout << nb << " bytes to read." << endl;    
+    
+	  int nbr = 0;
+	  if(nb > 0){
+	    nbr = UsbRd(id[i], 15, tmpbuf, nb); 
+	    cout << nbr << " bytes read." << endl;    
+	  }
+	}
+	
+	continue;
       }
 
       cout << "Starting readout..." << endl;
@@ -231,6 +319,11 @@ int main(int argc,char **argv)
           UsbWrt(id[i], 23, &wr, 1);
         }
         
+	if(timeout2){
+	  cout << "Acquisition time exceeds acceptable range: throw the data away." << endl;
+	  continue;
+	}
+
         // write DIF header
         // SPIL header
         int n = 0;
