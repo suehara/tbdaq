@@ -71,18 +71,22 @@ int main(int argc,char **argv)
   unsigned short *buf = new unsigned short[32768]; // 64k buffer
   unsigned char *tmpbuf = new unsigned char[65536]; // 64k buffer
 
+  cout << "tbdaq device file nacq" << endl;
+
   const char *filename;
-  if(argc > 1)
-    filename = argv[1];
+  if(argc > 2)
+    filename = argv[2];
   else
-    filename = "data_test_20190212_cms.raw";
+    filename = "data.raw";
+
+  int acqmax = (argc > 3 ? atoi(argv[3]) : -1);
 
   cout << "Filename: " << filename << endl;
   
   try{
     USB_GetNumberOfDevs(); // needed to initialize internal # devs; otherwise open failed
     
-    int id = OpenUsbDevice((char *)"SK2_05");
+    int id = OpenUsbDevice((char *)argv[1]);
     if(id == -1)throw(string(GetErrMsg(USB_GetLastError())));
 
     cout << "USB open OK" << endl;
@@ -257,6 +261,7 @@ int main(int argc,char **argv)
       cout << n*2 << " bytes sent at " << getTimeString() << endl;
       
       acq ++;
+      if(acqmax > 0 && acq < acqmax)break;
     }
     
   }catch(string s){
